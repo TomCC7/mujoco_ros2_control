@@ -39,6 +39,9 @@ class MujocoRos2Control
 {
 public:
   MujocoRos2Control(rclcpp::Node::SharedPtr &node, mjModel *mujoco_model, mjData *mujoco_data);
+  MujocoRos2Control(
+    rclcpp::Node::SharedPtr &node, mjModel *mujoco_model, mjData *mujoco_data,
+    const std::string &robot_description);
   ~MujocoRos2Control();
   void init();
   void update();
@@ -49,6 +52,7 @@ private:
   rclcpp::Node::SharedPtr node_;
   mjModel *mj_model_;
   mjData *mj_data_;
+  std::string robot_description_;
 
   rclcpp::Logger logger_;
   std::shared_ptr<pluginlib::ClassLoader<MujocoSystemInterface>> robot_hw_sim_loader_;

@@ -31,9 +31,23 @@ MujocoRos2Control::MujocoRos2Control(
     : node_(node),
       mj_model_(mujoco_model),
       mj_data_(mujoco_data),
+      robot_description_(),
       logger_(rclcpp::get_logger(node_->get_name() + std::string(".mujoco_ros2_control"))),
       control_period_(rclcpp::Duration(1, 0)),
-      last_update_sim_time_ros_(0, 0, RCL_ROS_TIME)
+      last_update_sim_time_ros_(0, 0, RCL_STEADY_TIME)
+{
+}
+
+MujocoRos2Control::MujocoRos2Control(
+  rclcpp::Node::SharedPtr &node, mjModel *mujoco_model, mjData *mujoco_data,
+  const std::string &robot_description)
+    : node_(node),
+      mj_model_(mujoco_model),
+      mj_data_(mujoco_data),
+      robot_description_(robot_description),
+      logger_(rclcpp::get_logger(node_->get_name() + std::string(".mujoco_ros2_control"))),
+      control_period_(rclcpp::Duration(1, 0)),
+      last_update_sim_time_ros_(0, 0, RCL_STEADY_TIME)
 {
 }
 
@@ -48,17 +62,21 @@ MujocoRos2Control::~MujocoRos2Control()
 
 std::string MujocoRos2Control::get_robot_description()
 {
+  if (!robot_description_.empty())
+  {
+    return robot_description_;
+  }
+
   // Getting robot description from parameter first. If not set trying from topic
   std::string robot_description;
 
-  auto node = std::make_shared<rclcpp::Node>(
-    "robot_description_node",
-    rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
-
-  if (node->has_parameter("robot_description"))
+  if (node_->has_parameter("robot_description"))
   {
-    robot_description = node->get_parameter("robot_description").as_string();
-    return robot_description;
+    robot_description = node_->get_parameter("robot_description").as_string();
+    if (!robot_description.empty())
+    {
+      return robot_description;
+    }
   }
 
   RCLCPP_WARN(
@@ -66,7 +84,7 @@ std::string MujocoRos2Control::get_robot_description()
     "Failed to get robot_description from parameter. Will listen on the ~/robot_description "
     "topic...");
 
-  auto robot_description_sub = node->create_subscription<std_msgs::msg::String>(
+  auto robot_description_sub = node_->create_subscription<std_msgs::msg::String>(
     "robot_description", rclcpp::QoS(1).transient_local(),
     [&](const std_msgs::msg::String::SharedPtr msg)
     {
@@ -75,8 +93,8 @@ std::string MujocoRos2Control::get_robot_description()
 
   while (robot_description.empty() && rclcpp::ok())
   {
-    rclcpp::spin_some(node);
-    RCLCPP_INFO(node->get_logger(), "Waiting for robot description message");
+    rclcpp::spin_some(node_);
+    RCLCPP_INFO(node_->get_logger(), "Waiting for robot description message");
     rclcpp::sleep_for(std::chrono::milliseconds(500));
   }
 
@@ -113,20 +131,11 @@ void MujocoRos2Control::init()
   }
 
   std::unique_ptr<hardware_interface::ResourceManager> resource_manager =
-    std::make_unique<hardware_interface::ResourceManager>();
-
-  try
-  {
-    resource_manager->load_urdf(urdf_string, false, false);
-  }
-  catch (...)
-  {
-    RCLCPP_ERROR(logger_, "Error while initializing URDF!");
-  }
+    std::make_unique<hardware_interface::ResourceManager>(node_->get_clock(), logger_);
 
   for (const auto &hardware : control_hardware_info)
   {
-    std::string robot_hw_sim_type_str_ = hardware.hardware_class_type;
+    std::string robot_hw_sim_type_str_ = hardware.hardware_plugin_name;
     std::unique_ptr<MujocoSystemInterface> mujoco_system;
     try
     {
@@ -158,8 +167,14 @@ void MujocoRos2Control::init()
   // Create the controller manager
   RCLCPP_INFO(logger_, "Loading controller_manager");
   cm_executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+  auto controller_manager_options = controller_manager::get_cm_node_options();
+  controller_manager_options.parameter_overrides(
+    {rclcpp::Parameter("robot_description", urdf_string)});
+  controller_manager_options.arguments(
+    {"--ros-args", "--remap", "/robot_description:=/_mujoco_ros2_control_unused_robot_description"});
   controller_manager_ = std::make_shared<controller_manager::ControllerManager>(
-    std::move(resource_manager), cm_executor_, "controller_manager", node_->get_namespace());
+    std::move(resource_manager), cm_executor_, "controller_manager", node_->get_namespace(),
+    controller_manager_options);
   cm_executor_->add_node(controller_manager_);
 
   if (!controller_manager_->has_parameter("update_rate"))
@@ -195,7 +210,8 @@ void MujocoRos2Control::update()
   int sim_time_nanosec = static_cast<int>((sim_time - sim_time_sec) * 1000000000);
 
   rclcpp::Time sim_time_ros(sim_time_sec, sim_time_nanosec, RCL_ROS_TIME);
-  rclcpp::Duration sim_period = sim_time_ros - last_update_sim_time_ros_;
+  rclcpp::Time sim_time_steady(sim_time_sec, sim_time_nanosec, RCL_STEADY_TIME);
+  rclcpp::Duration sim_period = sim_time_steady - last_update_sim_time_ros_;
 
   publish_sim_time(sim_time_ros);
 
@@ -203,13 +219,13 @@ void MujocoRos2Control::update()
 
   if (sim_period >= control_period_)
   {
-    controller_manager_->read(sim_time_ros, sim_period);
-    controller_manager_->update(sim_time_ros, sim_period);
-    last_update_sim_time_ros_ = sim_time_ros;
+    controller_manager_->read(sim_time_steady, sim_period);
+    controller_manager_->update(sim_time_steady, sim_period);
+    last_update_sim_time_ros_ = sim_time_steady;
   }
 
   // use same time as for read and update call - this is how it is done in ros2_control_node
-  controller_manager_->write(sim_time_ros, sim_period);
+  controller_manager_->write(sim_time_steady, sim_period);
 
   mj_step2(mj_model_, mj_data_);
 }

@@ -14,6 +14,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(controller_manager REQUIRED)
@@ -26,6 +27,7 @@ find_package(control_toolbox REQUIRED)
 set(THIS_PACKAGE_DEPENDS
   ament_cmake
   rclcpp
+  ament_index_cpp
   hardware_interface
   pluginlib
   controller_manager
@@ -43,7 +45,10 @@ if(mujoco_FOUND)
   set(MUJOCO_INCLUDE_DIR ${MUJOCO_INCLUDE_DIR})
 elseif(DEFINED ENV{MUJOCO_DIR})
   message(STATUS "Mujoco build from source has not been found. Attempting to find the binary in $ENV{MUJOCO_DIR} instead.")
-  find_library(MUJOCO_LIB mujoco HINTS $ENV{MUJOCO_DIR}/lib)
+  find_library(
+    MUJOCO_LIB
+    NAMES mujoco libmujoco.so.3.8.0 libmujoco.so.3.7.0 libmujoco.so.3.6.0
+    HINTS $ENV{MUJOCO_DIR}/lib $ENV{MUJOCO_DIR})
   if(NOT MUJOCO_LIB)
     message(FATAL_ERROR "Failed to find binary in $ENV{MUJOCO_DIR}")
   endif()

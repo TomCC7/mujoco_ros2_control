@@ -56,9 +56,38 @@ Use ``mujoco_ros2_control/MujocoSystem`` for plugin
     </sensor>
   </ros2_control>
 
+Model sources
+-------------
+``mujoco_ros2_control`` accepts two model sources. If ``mujoco_model_path`` is
+provided and non-empty, it is used first. ``.mjb`` files are loaded as MuJoCo
+binary models, and other paths are loaded as MuJoCo XML files. This preserves
+existing MJCF workflows.
+
+If ``mujoco_model_path`` is omitted or empty, the node reads the
+``robot_description`` parameter from the same ``mujoco_ros2_control`` node and
+passes that URDF directly to MuJoCo. ROS 2 parameters are node-scoped, so
+``robot_description`` must be supplied to this node, not only to another node.
+For example:
+
+.. code-block:: python3
+
+  node_mujoco_ros2_control = Node(
+      package='mujoco_ros2_control',
+      executable='mujoco_ros2_control',
+      output='screen',
+      parameters=[
+          robot_description,
+          controller_config_file,
+      ]
+  )
+
+MuJoCo's URDF support is more limited than MJCF. Use MJCF or MJB models when
+you need MuJoCo-specific modeling features that cannot be represented in URDF.
+
 Convert URDF model to XML
---------------------------
-URDF models must be converted to `MJCF XML <https://mujoco.readthedocs.io/en/latest/modeling.html>`_ files.
+-------------------------
+URDF models can be loaded directly from ``robot_description`` or converted to
+`MJCF XML <https://mujoco.readthedocs.io/en/latest/modeling.html>`_ files.
 Make sure to use the same name for the link and joint, which are mapped to the body and joint in Mujoco.
 You need to specify <limit> which is mapped to ``range`` in MJCF.
 For now, there is no way to specify velocity or acceleration limit.
@@ -82,8 +111,9 @@ An overview is available through the "camera" demo.
 For additional information refer to the ``mujoco_ros2_control_demos/mujoco_models`` for examples.
 
 Specify the location of Mujoco models and the controller configuration file
-----------------------------------------------------------------------------
-You need to pass parameters for paths as shown in the following example.
+---------------------------------------------------------------------------
+To force a MJCF or MJB file, pass ``mujoco_model_path`` as shown in the
+following example.
 
 .. code-block:: python3
 

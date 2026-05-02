@@ -37,6 +37,11 @@ colcon build
 
 See the [documentation](doc/index.rst) for usage.
 
+`mujoco_ros2_control` can load MuJoCo models from either a `mujoco_model_path`
+parameter or, when that path is omitted or empty, from the node-scoped
+`robot_description` URDF parameter. MJCF/MJB files remain recommended when you
+need MuJoCo-specific modeling features that URDF cannot express.
+
 ## Docker
 
 A basic containerized workflow is provided to test this package in isolation.
@@ -48,6 +53,6 @@ Here are several potential areas for future improvement:
 
 1. **Sensors:** Implement IMU sensors, and range sensors.
 
-2. **Loading Model From URDF:** Implement direct loading of models from URDF, eliminating the need to convert URDF files to XML.
+2. **Advanced URDF parity:** Improve coverage for URDF models that use MuJoCo-specific features normally represented in MJCF.
 
 Feel free to suggest ideas for new features or improvements.

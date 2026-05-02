@@ -74,13 +74,17 @@ You can configure the `ros2_control` hardware system plugin for MuJoCo in the UR
 You can also set parameters for the plugin such as pid gains, min/max effort and so on.
 To find examples of parameters, please see `urdf examples <https://github.com/sangteak601/mujoco_ros2_control/tree/moveit_doc/mujoco_ros2_control_demos/urdf>`_.
 
-Create MJCF(MuJoCo xml format)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Choose URDF, MJCF, or MJB model input
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You need to convert the URDF model to a MJCF XML file.
-Make sure to use the **same name** for the ``link`` and ``joint``, which are mapped to the ``body`` and ``joint`` in MuJoCo.
-You can specify position limits in ``<limit>`` in MJCF, and effort limits in URDF as shown in this
-`example <https://github.com/sangteak601/mujoco_ros2_control/blob/moveit_doc/mujoco_ros2_control_demos/urdf/test_cart_effort.xacro.urdf>`_
+You can pass a URDF through the node-scoped ``robot_description`` parameter, or
+you can pass a MJCF/MJB file through ``mujoco_model_path``. MJCF/MJB remains the
+best option when the model needs MuJoCo-specific features that URDF cannot
+express directly. When you do convert URDF to MJCF, make sure to use the
+**same name** for the ``link`` and ``joint``, which are mapped to the ``body``
+and ``joint`` in MuJoCo. You can specify position limits in ``<limit>`` in MJCF,
+and effort limits in URDF as shown in this
+`example <https://github.com/sangteak601/mujoco_ros2_control/blob/moveit_doc/mujoco_ros2_control_demos/urdf/test_cart_effort.xacro.urdf>`_.
 Velocity limits will not be applied at all.
 
 Any force torque sensors need to be mapped to separate force and torque sensors in the MJCF, since there is no support for combined sensors in MuJoCo.
@@ -89,10 +93,14 @@ For example, if you have a force torque sensor called ``my_sensor``, you need to
 
 Check `mujoco_models <https://github.com/sangteak601/mujoco_ros2_control/tree/moveit_doc/mujoco_ros2_control_demos/mujoco_models>`_ for examples.
 
-Specify the path to MJCF and controller config
+Specify the model source and controller config
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You need to pass the path to MJCF as ``mujoco_model_path`` parameter to the node.
+You can pass the path to MJCF as ``mujoco_model_path`` parameter to the node.
+If ``mujoco_model_path`` is omitted or empty, ``mujoco_ros2_control`` reads
+``robot_description`` from its own node parameters and asks MuJoCo to compile
+that URDF directly. ROS 2 parameters are node-scoped, so provide
+``robot_description`` to this node even if another node also receives it.
 You also need to pass controller configuration since ``mujoco_ros2_control`` is replacing ``ros2_control`` node.
 
 .. code-block:: Python
